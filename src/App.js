@@ -1,7 +1,7 @@
 'use client'
 
 import './App.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 
 const PATTERNS = {
   glider: {
@@ -51,6 +51,10 @@ const PATTERNS = {
   }
 };
 
+function deepCloneWorld(world) {
+  return world.map(row => row.slice());
+}
+
 export default function Home() {
   const [maxCol, setMaxCol] = useState(30);
   const [maxRow, setMaxRow] = useState(20);
@@ -58,96 +62,98 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [speed, setSpeed] = useState(500);
   const [isDragging, setIsDragging] = useState(false);
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     const newWorld = Array(maxRow).fill(null).map(row => new Array(maxCol).fill(null));
     setWorld(newWorld);
+    setGeneration(0);
   }, [maxRow, maxCol]);
 
-  useEffect(() => {
+  const getNeighbours = useCallback((world, row, col, maxRow, maxCol) => {
+    let num = 0;
 
-    function play() {
-      const nextWorld = world.slice();
-      let isModified = false;
-      let n = 0;
-      let deads = [];
-      let lives = [];
-  
-      for (let row = 0; row < maxRow; row++) {
-        for (let col = 0; col < maxCol; col++) {
-          n = getNeighbours(row, col);
-          if (!nextWorld[row][col] && n === 3) {
-            lives.push(new Point(row, col));
-          } else if (nextWorld[row][col] === 'X' && (n < 2 || n > 3)) {
-            deads.push(new Point(row, col));
-          }
+    if (row > 0)
+    {
+        if (col > 0)
+        {
+            if (world[row-1][col-1])
+                num++;
+        }
+        if (world[row-1][col])
+            num++;
+        if (col < maxCol - 1)
+        {
+            if (world[row-1][col+1])
+                num++;
+        }
+    }
+    if (col > 0)
+    {
+        if (world[row][col - 1])
+            num++;
+    }
+    if (col < maxCol - 1)
+    {
+        if (world[row][col + 1])
+            num++;
+    }
+    if (row < maxRow - 1)
+    {
+        if (col > 0)
+        {
+            if (world[row + 1][col - 1])
+                num++;
+        }
+        if (world[row + 1][col])
+            num++;
+        if (col < maxCol - 1)
+        {
+            if (world[row + 1][col + 1])
+                num++;
+        }
+    }
+
+    return num;
+  }, []);
+
+  const play = useCallback(() => {
+    const nextWorld = deepCloneWorld(world);
+    let isModified = false;
+    let n = 0;
+    let deads = [];
+    let lives = [];
+
+    for (let row = 0; row < maxRow; row++) {
+      for (let col = 0; col < maxCol; col++) {
+        n = getNeighbours(world, row, col, maxRow, maxCol);
+        if (!nextWorld[row][col] && n === 3) {
+          lives.push(new Point(row, col));
+        } else if (nextWorld[row][col] === 'X' && (n < 2 || n > 3)) {
+          deads.push(new Point(row, col));
         }
       }
-  
-      if (lives.length > 0 || deads.length > 0) {
-        isModified = true;
-      }
-  
-      for (let i of lives) {
-        nextWorld[i.getX()][i.getY()] = 'X';
-      }
-  
-      for (let i of deads) {
-        nextWorld[i.getX()][i.getY()] = null;
-      }
-  
-      if (isModified) {
-        handlePlay(nextWorld);
-      }
     }
 
-    function getNeighbours(row, col) {
-      let num = 0;
-  
-      if (row > 0)
-      {
-          if (col > 0)
-          {
-              if (world[row-1][col-1])
-                  num++;
-          }
-          if (world[row-1][col])
-              num++;
-          if (col < maxCol - 1)
-          {
-              if (world[row-1][col+1])
-                  num++;
-          }
-      }
-      if (col > 0)
-      {
-          if (world[row][col - 1])
-              num++;
-      }
-      if (col < maxCol - 1)
-      {
-          if (world[row][col + 1])
-              num++;
-      }
-      if (row < maxRow - 1)
-      {
-          if (col > 0)
-          {
-              if (world[row + 1][col - 1])
-                  num++;
-          }
-          if (world[row + 1][col])
-              num++;
-          if (col < maxCol - 1)
-          {
-              if (world[row + 1][col + 1])
-                  num++;
-          }
-      }
-  
-      return num;
+    if (lives.length > 0 || deads.length > 0) {
+      isModified = true;
     }
-  
+
+    for (let i of lives) {
+      nextWorld[i.getX()][i.getY()] = 'X';
+    }
+
+    for (let i of deads) {
+      nextWorld[i.getX()][i.getY()] = null;
+    }
+
+    if (isModified) {
+      setWorld(nextWorld);
+      setGeneration(prev => prev + 1);
+    }
+  }, [world, maxRow, maxCol, getNeighbours]);
+
+  useEffect(() => {
     if (isRunning) {
       let timer = setTimeout(() => {
         play();
@@ -155,35 +161,36 @@ export default function Home() {
 
       return () => clearTimeout(timer)
     }
+  }, [isRunning, play, speed]);
 
-  }, [world, isRunning, maxRow, maxCol, speed]);
-
-  function start() {
+  const start = useCallback(() => {
     console.log("start");
     setIsRunning(true);
-  }
+  }, []);
 
-  function stop() {
+  const stop = useCallback(() => {
     setIsRunning(false);
-  }
+  }, []);
 
-  function handlePlay(currentWorld) {
+  const handlePlay = useCallback((currentWorld) => {
     setWorld(currentWorld);
-  }
+  }, []);
 
-  function clearGrid() {
+  const clearGrid = useCallback(() => {
     const newWorld = Array(maxRow).fill(null).map(row => new Array(maxCol).fill(null));
     setWorld(newWorld);
-  }
+    setGeneration(0);
+  }, [maxRow, maxCol]);
 
-  function randomFill() {
+  const randomFill = useCallback(() => {
     const newWorld = Array(maxRow).fill(null).map(row => 
       new Array(maxCol).fill(null).map(() => Math.random() > 0.7 ? 'X' : null)
     );
     setWorld(newWorld);
-  }
+    setGeneration(0);
+  }, [maxRow, maxCol]);
 
-  function loadPattern(patternKey) {
+  const loadPattern = useCallback((patternKey) => {
     const pattern = PATTERNS[patternKey];
     const newWorld = Array(maxRow).fill(null).map(row => new Array(maxCol).fill(null));
     
@@ -199,17 +206,19 @@ export default function Home() {
     });
     
     setWorld(newWorld);
-  }
+    setGeneration(0);
+  }, [maxRow, maxCol]);
 
-  function handleGridSizeChange(rows, cols) {
+  const handleGridSizeChange = useCallback((rows, cols) => {
     setMaxRow(rows);
     setMaxCol(cols);
-  }
+  }, []);
 
   return (
     <main>
       <div className="full-width">
         <h1>LifeGame</h1>
+        <div className="generation-counter">Generation: {generation}</div>
       </div>
       
       <div className="controls-section">
@@ -272,10 +281,10 @@ export default function Home() {
 
         <div className="control-group">
           <h3>Controls</h3>
-          <button className='button-3' onClick={() => start()} disabled={isRunning}>Start</button>
-          <button className='button-3' onClick={() => stop()} disabled={!isRunning}>Stop</button>
-          <button className='button-3' onClick={() => clearGrid()} disabled={isRunning}>Clear</button>
-          <button className='button-3' onClick={() => randomFill()} disabled={isRunning}>Random</button>
+          <button className='button-3' onClick={start} disabled={isRunning}>Start</button>
+          <button className='button-3' onClick={stop} disabled={!isRunning}>Stop</button>
+          <button className='button-3' onClick={clearGrid} disabled={isRunning}>Clear</button>
+          <button className='button-3' onClick={randomFill} disabled={isRunning}>Random</button>
         </div>
       </div>
 
@@ -292,36 +301,35 @@ export default function Home() {
   )
 }
 
-function Board({world, onPlay, isDragging, setIsDragging, isRunning}) {
-
-  function click(row, col) {
+const Board = memo(function Board({world, onPlay, isDragging, setIsDragging, isRunning}) {
+  const click = useCallback((row, col) => {
     if (isRunning) return;
     console.log( row + ', ' + col);
 
-    const nextWorld = world.slice().map(r => r.slice());
+    const nextWorld = deepCloneWorld(world);
     nextWorld[row][col] = nextWorld[row][col] ? null : 'X';
     onPlay(nextWorld);
-  }
+  }, [world, onPlay, isRunning]);
 
-  function handleMouseDown(row, col) {
+  const handleMouseDown = useCallback((row, col) => {
     if (isRunning) return;
     setIsDragging(true);
-    const nextWorld = world.slice().map(r => r.slice());
+    const nextWorld = deepCloneWorld(world);
     nextWorld[row][col] = 'X';
     onPlay(nextWorld);
-  }
+  }, [world, onPlay, setIsDragging, isRunning]);
 
-  function handleMouseEnter(row, col) {
+  const handleMouseEnter = useCallback((row, col) => {
     if (isDragging && !isRunning) {
-      const nextWorld = world.slice().map(r => r.slice());
+      const nextWorld = deepCloneWorld(world);
       nextWorld[row][col] = 'X';
       onPlay(nextWorld);
     }
-  }
+  }, [isDragging, isRunning, world, onPlay]);
 
-  function handleMouseUp() {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false);
-  }
+  }, [setIsDragging]);
 
   useEffect(() => {
     const handleGlobalMouseUp = () => setIsDragging(false);
@@ -355,9 +363,9 @@ function Board({world, onPlay, isDragging, setIsDragging, isRunning}) {
       })}
     </div>
   );
-}
+});
 
-function Square({ val, click, onMouseDown, onMouseEnter }) {
+const Square = memo(function Square({ val, click, onMouseDown, onMouseEnter }) {
   return (
     <button 
       className="square" 
@@ -368,7 +376,7 @@ function Square({ val, click, onMouseDown, onMouseEnter }) {
       {val}
     </button>
   );
-}
+});
 
 class Point {
   x;

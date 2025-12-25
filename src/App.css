@@ -89,6 +89,13 @@ ul {
   width: 100%;
 }
 
+.generation-counter {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0969da;
+  margin-top: 10px;
+}
+
 .button-3 {
   appearance: none;
   background-color: #2ea44f;
